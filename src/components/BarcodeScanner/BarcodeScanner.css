@@ -1,0 +1,227 @@
+/* ─── Fullscreen scanner overlay ─── */
+.barcode-scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+.barcode-scanner-overlay video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  flex: 1;
+}
+
+/* ─── Detection guide overlay ─── */
+.scanner-guide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scanner-frame {
+  position: relative;
+  width: 80%;
+  max-width: 400px;
+  height: 200px;
+  border: 2px solid rgba(196, 122, 58, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+}
+
+/* Corner markers */
+.sf-corner {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-color: #C47A3A;
+  border-style: solid;
+  border-width: 0;
+  transition: border-color 0.2s;
+}
+
+.sf-corner.detected {
+  border-color: #4ADE80;
+}
+
+.sf-tl { top: -2px; left: -2px; border-top-width: 4px; border-left-width: 4px; border-top-left-radius: 16px; }
+.sf-tr { top: -2px; right: -2px; border-top-width: 4px; border-right-width: 4px; border-top-right-radius: 16px; }
+.sf-bl { bottom: -2px; left: -2px; border-bottom-width: 4px; border-left-width: 4px; border-bottom-left-radius: 16px; }
+.sf-br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-bottom-right-radius: 16px; }
+
+/* Laser scan line */
+.sf-laser {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(196, 122, 58, 0.15) 10%,
+    rgba(196, 122, 58, 0.9) 50%,
+    rgba(196, 122, 58, 0.15) 90%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 12px rgba(196, 122, 58, 0.7),
+    0 0 30px rgba(196, 122, 58, 0.3);
+  border-radius: 4px;
+  animation: sf-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes sf-sweep {
+  0%, 100% { top: 8%; opacity: 0.5; }
+  50% { top: 90%; opacity: 1; }
+}
+
+/* Detected flash */
+.scanner-frame.sf-detected {
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.45),
+    inset 0 0 40px rgba(74, 222, 128, 0.15);
+}
+
+.scanner-frame.sf-detected .sf-laser {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(74, 222, 128, 0.15) 10%,
+    rgba(74, 222, 128, 0.9) 50%,
+    rgba(74, 222, 128, 0.15) 90%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 12px rgba(74, 222, 128, 0.7),
+    0 0 30px rgba(74, 222, 128, 0.3);
+  animation: none;
+  top: 50%;
+}
+
+/* Center crosshair */
+.sf-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sf-crosshair::before,
+.sf-crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(196, 122, 58, 0.5);
+  border-radius: 1px;
+}
+
+.sf-crosshair::before {
+  width: 20px;
+  height: 2px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sf-crosshair::after {
+  width: 2px;
+  height: 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Hint text */
+.sf-hint {
+  position: absolute;
+  bottom: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Top controls bar */
+.scanner-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Bottom result bar */
+.scanner-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Control buttons */
+.scanner-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.scanner-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.scanner-btn:active {
+  transform: scale(0.9);
+}
+
+.scanner-btn.active {
+  background: rgba(196, 122, 58, 0.4);
+  border-color: rgba(196, 122, 58, 0.6);
+}
+
+/* Last scan result chip */
+.scanner-result-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  backdrop-filter: blur(12px);
+  animation: sf-slide-up 0.3s ease-out;
+}
+
+@keyframes sf-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
