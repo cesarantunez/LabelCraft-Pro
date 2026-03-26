@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Grid3X3, List, Trash2, Copy, Printer, Filter, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, Plus, Grid3X3, List, Trash2, Copy, Printer, Pencil, PackageX, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -11,9 +12,11 @@ import { db } from '@/lib/database'
 import type { Product, Category, BarcodeType } from '@/types'
 
 export default function Products() {
+  const navigate = useNavigate()
   const { addToast } = useAppStore()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [currencySymbol, setCurrencySymbol] = useState('$')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active')
@@ -34,10 +37,10 @@ export default function Products() {
     price: '0',
     cost: '0',
     stock_quantity: '0',
-    min_stock_alert: '5',
+    min_stock_alert: db.getSetting('low_stock_threshold') || '5',
     barcode_value: '',
     barcode_type: 'code128' as BarcodeType,
-    unit: 'unidad',
+    unit: db.getSetting('default_unit') || 'unidad',
   })
 
   const loadProducts = useCallback(() => {
@@ -55,6 +58,7 @@ export default function Products() {
 
   useEffect(() => {
     setCategories(db.getCategories())
+    setCurrencySymbol(db.getSetting('currency_symbol') || '$')
   }, [])
 
   useEffect(() => {
@@ -71,16 +75,24 @@ export default function Products() {
       price: '0',
       cost: '0',
       stock_quantity: '0',
-      min_stock_alert: '5',
+      min_stock_alert: db.getSetting('low_stock_threshold') || '5',
       barcode_value: '',
       barcode_type: 'code128',
-      unit: 'unidad',
+      unit: db.getSetting('default_unit') || 'unidad',
     })
     setEditingProduct(null)
   }
 
+  const generateSku = (): string => {
+    const prefix = db.getSetting('sku_prefix') || 'PROD'
+    const digits = parseInt(db.getSetting('sku_digits') || '4')
+    const count = db.getProductCount() + 1
+    return `${prefix}-${String(count).padStart(digits, '0')}`
+  }
+
   const openCreateModal = () => {
     resetForm()
+    setForm((f) => ({ ...f, sku: generateSku() }))
     setShowModal(true)
   }
 
@@ -283,7 +295,14 @@ export default function Products() {
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-copper/30 bg-copper/5 px-4 py-2">
           <span className="text-sm">{selectedIds.size} seleccionados</span>
-          <Button variant="secondary" size="sm">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              const ids = Array.from(selectedIds).join(',')
+              navigate(`/imprimir?productos=${encodeURIComponent(ids)}`)
+            }}
+          >
             <Printer className="h-3 w-3" /> Imprimir etiquetas
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
@@ -296,7 +315,7 @@ export default function Products() {
       {products.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center justify-center py-12">
-            <Filter className="h-12 w-12 text-gray-600 mb-4" />
+            <PackageX className="h-12 w-12 text-gray-600 mb-4" />
             <p className="text-gray-400 mb-2">No se encontraron productos</p>
             <p className="text-sm text-gray-600 mb-4">
               {search ? 'Intenta con otros terminos de busqueda' : 'Agrega tu primer producto para empezar'}
@@ -354,11 +373,11 @@ export default function Products() {
                       {product.stock_quantity}
                       {lowStock && <AlertTriangle className="ml-1 inline h-3 w-3" />}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono">${product.price.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{currencySymbol}{product.price.toFixed(2)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openEditModal(product)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Editar">
-                          <Filter className="h-3.5 w-3.5" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button onClick={() => handleDuplicate(product)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Duplicar">
                           <Copy className="h-3.5 w-3.5" />
@@ -391,7 +410,7 @@ export default function Products() {
                     <span className={`text-sm font-mono ${lowStock ? 'text-error' : 'text-gray-300'}`}>
                       Stock: {product.stock_quantity}
                     </span>
-                    <span className="font-mono text-sm">${product.price.toFixed(2)}</span>
+                    <span className="font-mono text-sm">{currencySymbol}{product.price.toFixed(2)}</span>
                   </div>
                 </div>
               </Card>

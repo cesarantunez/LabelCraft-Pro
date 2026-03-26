@@ -35,7 +35,7 @@ export async function generateBarcodeCanvas(
 
   if (!is2D) {
     bwipOpts.height = opts?.height ?? 10
-    bwipOpts.width = opts?.width ?? undefined
+    if (opts?.width != null) bwipOpts.width = opts.width
   }
 
   bwipjs.toCanvas(canvas, bwipOpts)
@@ -65,12 +65,13 @@ export function generateBarcodeCanvasSync(
 
     if (!is2D) {
       bwipOpts.height = opts?.height ?? 10
-      bwipOpts.width = opts?.width ?? undefined
+      if (opts?.width != null) bwipOpts.width = opts.width
     }
 
     bwipjs.toCanvas(canvas, bwipOpts)
     return canvas
-  } catch {
+  } catch (err) {
+    console.warn('[barcode] generation failed:', value, type, err)
     return null
   }
 }

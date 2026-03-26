@@ -16,6 +16,7 @@ import { generateBarcodeCanvasSync } from '@/lib/barcode'
 import type { CanvasElement, CanvasElementType, CanvasState, BarcodeType } from '@/types'
 
 const MM_TO_PX = 3.78
+const BARCODE_CACHE_MAX = 50
 
 const LABEL_PRESETS = [
   { label: '50 x 30 mm', w: 50, h: 30 },
@@ -47,7 +48,7 @@ function createElement(type: CanvasElementType, x: number, y: number): CanvasEle
     case 'circle':
       return { ...base, width: 12, height: 12, properties: { fill: 'transparent', stroke: '#000000', strokeWidth: 1 } }
     case 'price':
-      return { ...base, width: 15, height: 8, properties: { currencySymbol: '$', fontSize: 18, fontFamily: 'Inter', color: '#000000' } }
+      return { ...base, width: 15, height: 8, properties: { currencySymbol: db.getSetting('currency_symbol') || '$', fontSize: 18, fontFamily: 'Inter', color: '#000000' } }
     default:
       return { ...base, width: 15, height: 10, properties: {} }
   }
@@ -72,20 +73,47 @@ export default function Editor() {
 
   // Load template
   useEffect(() => {
+    barcodeCacheRef.current.clear()
     if (templateId) {
       const template = db.getTemplate(templateId)
       if (template) {
         store.setTemplateId(template.id)
         store.setTemplateName(template.name)
         try {
-          const canvasState: CanvasState = JSON.parse(template.canvas_json)
+          const parsed = JSON.parse(template.canvas_json)
+          // Validate canvas structure
+          if (
+            typeof parsed !== 'object' || parsed === null ||
+            !Array.isArray(parsed.elements) ||
+            typeof parsed.width !== 'number' || typeof parsed.height !== 'number'
+          ) {
+            throw new Error('Estructura de canvas invalida')
+          }
+          // Sanitize elements — ensure required fields exist
+          const safeElements = parsed.elements.filter((el: Record<string, unknown>) =>
+            typeof el.id === 'string' && typeof el.type === 'string' &&
+            typeof el.x === 'number' && typeof el.y === 'number' &&
+            typeof el.width === 'number' && typeof el.height === 'number'
+          )
+          const canvasState: CanvasState = {
+            elements: safeElements,
+            width: parsed.width,
+            height: parsed.height,
+            backgroundColor: typeof parsed.backgroundColor === 'string' ? parsed.backgroundColor : '#FFFFFF',
+          }
           store.loadCanvas(canvasState)
-        } catch {
-          addToast({ type: 'error', message: 'Error al cargar la plantilla.' })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Error desconocido'
+          addToast({ type: 'error', message: `Error al cargar la plantilla: ${msg}` })
+          store.resetEditor()
         }
       }
     } else {
       store.resetEditor()
+      // Apply default label dimensions from settings
+      const defaultW = parseInt(db.getSetting('label_default_width') || '50')
+      const defaultH = parseInt(db.getSetting('label_default_height') || '30')
+      if (defaultW > 0 && defaultH > 0) store.setCanvasSize(defaultW, defaultH)
     }
   }, [templateId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -160,6 +188,7 @@ export default function Editor() {
           const cacheKey = `bc:${bType}:${bVal}:${showTxt}`
           let bcCanvas = barcodeCacheRef.current.get(cacheKey)
           if (bcCanvas === undefined) {
+            if (barcodeCacheRef.current.size >= BARCODE_CACHE_MAX) barcodeCacheRef.current.delete(barcodeCacheRef.current.keys().next().value!)
             bcCanvas = generateBarcodeCanvasSync(bVal, bType, { scale: 2, showText: showTxt })
             barcodeCacheRef.current.set(cacheKey, bcCanvas)
           }
@@ -179,6 +208,7 @@ export default function Editor() {
           const qKey = `${qType}:${qVal}`
           let qCanvas = barcodeCacheRef.current.get(qKey)
           if (qCanvas === undefined) {
+            if (barcodeCacheRef.current.size >= BARCODE_CACHE_MAX) barcodeCacheRef.current.delete(barcodeCacheRef.current.keys().next().value!)
             qCanvas = generateBarcodeCanvasSync(qVal, qType, { scale: 4 })
             barcodeCacheRef.current.set(qKey, qCanvas)
           }

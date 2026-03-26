@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, ArrowLeftRight, Calendar } from 'lucide-react'
+import { Plus, ArrowLeftRight, Calendar, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -22,6 +22,23 @@ const typeColors: Record<MovementType, string> = {
   salida: '#F87171',
   ajuste: '#FBBF24',
   devolucion: '#C47A3A',
+}
+
+function formatMovDate(dateStr: string) {
+  const date = new Date(dateStr.replace(' ', 'T'))
+  if (isNaN(date.getTime())) return dateStr
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMin < 1) return 'Justo ahora'
+  if (diffMin < 60) return `Hace ${diffMin} min`
+  if (diffHours < 24) return `Hace ${diffHours}h`
+  if (diffDays === 1) return 'Ayer'
+  if (diffDays < 7) return `Hace ${diffDays} dias`
+  return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function Movements() {
@@ -70,6 +87,15 @@ export default function Movements() {
       return
     }
 
+    // Validate stock won't go negative on salida/ajuste
+    if (form.type === 'salida' || form.type === 'ajuste') {
+      const product = products.find((p) => p.id === form.product_id)
+      if (product && qty > product.stock_quantity) {
+        addToast({ type: 'error', message: `Stock insuficiente. "${product.name}" solo tiene ${product.stock_quantity} en inventario.` })
+        return
+      }
+    }
+
     try {
       db.addMovement({
         product_id: form.product_id,
@@ -82,6 +108,7 @@ export default function Movements() {
       addToast({ type: 'success', message: `${typeLabels[form.type]} de ${qty} registrada para "${product?.name}".` })
       setShowModal(false)
       setForm({ product_id: '', type: 'entrada', quantity: '1', reason: '', reference: '' })
+      setProducts(db.getProducts({ activeOnly: true }))
       loadMovements()
     } catch {
       addToast({ type: 'error', message: 'No se pudo registrar el movimiento.' })
@@ -92,6 +119,16 @@ export default function Movements() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Movimientos de Inventario</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Entradas, salidas y ajustes de stock</p>
+        </div>
+        <Button onClick={() => setShowModal(true)}>
+          <Plus className="h-4 w-4" /> Registrar Movimiento
+        </Button>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={typeFilter}
@@ -104,16 +141,12 @@ export default function Movements() {
           ]}
           placeholder="Todos los tipos"
         />
-        <select
+        <Select
           value={productFilter}
           onChange={(e) => setProductFilter(e.target.value)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white transition-default focus-ring max-w-[200px]"
-        >
-          <option value="">Todos los productos</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+          options={products.map((p) => ({ value: p.id, label: p.name }))}
+          placeholder="Todos los productos"
+        />
         <div className="flex items-center gap-1.5">
           <Calendar className="h-4 w-4 text-gray-500" />
           <input
@@ -140,10 +173,6 @@ export default function Movements() {
             Limpiar filtros
           </button>
         )}
-        <div className="flex-1" />
-        <Button onClick={() => setShowModal(true)}>
-          <Plus className="h-4 w-4" /> Registrar Movimiento
-        </Button>
       </div>
 
       <Card className="!p-0 overflow-x-auto">
@@ -167,12 +196,14 @@ export default function Movements() {
             <tbody>
               {movements.map((mov) => (
                 <tr key={mov.id} className="border-b border-border/50 hover:bg-white/[0.02] transition-default">
-                  <td className="px-4 py-3 text-gray-400 text-xs">{mov.created_at}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs" title={mov.created_at}>{formatMovDate(mov.created_at)}</td>
                   <td className="px-4 py-3">
                     <Badge color={typeColors[mov.type as MovementType]}>{typeLabels[mov.type as MovementType]}</Badge>
                   </td>
                   <td className="px-4 py-3">{getProductName(mov.product_id)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{mov.quantity}</td>
+                  <td className={`px-4 py-3 text-right font-mono ${mov.type === 'entrada' || mov.type === 'devolucion' ? 'text-green-400' : 'text-red-400'}`}>
+                    {mov.type === 'entrada' || mov.type === 'devolucion' ? '+' : '-'}{mov.quantity}
+                  </td>
                   <td className="px-4 py-3 text-gray-400">{mov.reason || '—'}</td>
                   <td className="px-4 py-3 text-gray-400 font-mono">{mov.reference || '—'}</td>
                 </tr>
@@ -191,6 +222,17 @@ export default function Movements() {
             options={products.map((p) => ({ value: p.id, label: `${p.name} (${p.sku})` }))}
             placeholder="Selecciona un producto"
           />
+          {form.product_id && (() => {
+            const p = products.find((pr) => pr.id === form.product_id)
+            if (!p) return null
+            const isLow = p.stock_quantity <= p.min_stock_alert
+            return (
+              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isLow ? 'bg-red-500/10 text-red-400' : 'bg-surface text-gray-400'}`}>
+                {isLow && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                Stock actual: <span className="font-mono font-medium text-white">{p.stock_quantity}</span> {p.unit}
+              </div>
+            )
+          })()}
           <Select
             label="Tipo *"
             value={form.type}

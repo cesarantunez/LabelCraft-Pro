@@ -48,8 +48,8 @@ function formatDate(dateStr: string) {
   return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
-function formatCurrency(n: number) {
-  return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+function formatCurrency(n: number, symbol: string = '$') {
+  return symbol + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
 function exportCSV(headers: string[], rows: string[][], filename: string) {
@@ -213,14 +213,23 @@ export default function Reports() {
   const [movements, setMovements] = useState<InventoryMovement[]>([])
   const [printHistory, setPrintHistory] = useState<PrintHistory[]>([])
   const [movTypeFilter, setMovTypeFilter] = useState<string>('')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [productMap, setProductMap] = useState<Map<string, Product>>(new Map())
 
   useEffect(() => {
-    setProducts(db.getProducts({ activeOnly: true }))
+    const prods = db.getProducts({ activeOnly: true })
+    setProducts(prods)
+    const map = new Map<string, Product>()
+    for (const p of prods) map.set(p.id, p)
+    setProductMap(map)
     setLowStockProducts(db.getProducts({ lowStock: true, activeOnly: true }))
     setMovements(db.getMovements({ limit: 500 }))
     setPrintHistory(db.getPrintHistory(200))
+    setCurrencySymbol(db.getSetting('currency_symbol') || '$')
   }, [])
 
+  const fc = (n: number) => formatCurrency(n, currencySymbol)
+  const getProductName = (id: string) => productMap.get(id)?.name || 'Eliminado'
   const filteredMovements = movTypeFilter ? movements.filter((m) => m.type === movTypeFilter) : movements
   const totalUnits = products.reduce((s, p) => s + p.stock_quantity, 0)
   const totalCostValue = products.reduce((s, p) => s + p.cost * p.stock_quantity, 0)
@@ -255,10 +264,11 @@ export default function Reports() {
             <ExportButtons title="Inventario Actual" headers={['SKU', 'Nombre', 'Stock', 'Unidad', 'Precio', 'Costo', 'Valor']}
               rows={products.map((p) => [p.sku, p.name, String(p.stock_quantity), p.unit, p.price.toFixed(2), p.cost.toFixed(2), (p.price * p.stock_quantity).toFixed(2)])} name="inventario" />
           </div>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-4">
+            <KPI label="Productos" value={products.length} />
             <KPI label="Total unidades" value={totalUnits.toLocaleString()} />
-            <KPI label="Valor costo" value={formatCurrency(totalCostValue)} />
-            <KPI label="Valor venta" value={formatCurrency(totalSaleValue)} color="#C47A3A" />
+            <KPI label="Valor costo" value={fc(totalCostValue)} />
+            <KPI label="Valor venta" value={fc(totalSaleValue)} color="#C47A3A" />
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
@@ -275,17 +285,17 @@ export default function Reports() {
                     <td className="px-3 py-2">{p.name}</td>
                     <td className={`px-3 py-2 text-right font-medium ${p.stock_quantity < p.min_stock_alert ? 'text-red-400' : ''}`}>{p.stock_quantity}</td>
                     <td className="px-3 py-2 text-gray-500">{p.unit}</td>
-                    <td className="px-3 py-2 text-right text-copper">{formatCurrency(p.price)}</td>
-                    <td className="px-3 py-2 text-right text-gray-400">{formatCurrency(p.cost)}</td>
-                    <td className="px-3 py-2 text-right font-medium">{formatCurrency(p.price * p.stock_quantity)}</td>
+                    <td className="px-3 py-2 text-right text-copper">{fc(p.price)}</td>
+                    <td className="px-3 py-2 text-right text-gray-400">{fc(p.cost)}</td>
+                    <td className="px-3 py-2 text-right font-medium">{fc(p.price * p.stock_quantity)}</td>
                   </tr>
                 ))}
                 {products.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-gray-500">No hay productos</td></tr>}
               </tbody>
               {products.length > 0 && <tfoot><tr className="border-t border-border bg-surface text-xs font-semibold">
                 <td className="px-3 py-2" colSpan={2}>Totales</td><td className="px-3 py-2 text-right">{totalUnits}</td>
-                <td className="px-3 py-2" /><td className="px-3 py-2" /><td className="px-3 py-2 text-right">{formatCurrency(totalCostValue)}</td>
-                <td className="px-3 py-2 text-right text-copper">{formatCurrency(totalSaleValue)}</td>
+                <td className="px-3 py-2" /><td className="px-3 py-2" /><td className="px-3 py-2 text-right">{fc(totalCostValue)}</td>
+                <td className="px-3 py-2 text-right text-copper">{fc(totalSaleValue)}</td>
               </tr></tfoot>}
             </table>
           </div>
@@ -344,7 +354,7 @@ export default function Reports() {
                 { value: 'ajuste', label: 'Ajuste' }, { value: 'devolucion', label: 'Devolucion' },
               ]} />
               <ExportButtons title="Movimientos" headers={['Fecha', 'Producto', 'Tipo', 'Cantidad', 'Motivo']}
-                rows={filteredMovements.map((m) => { const p = db.getProduct(m.product_id); return [formatDate(m.created_at), p?.name || m.product_id, TYPE_LABELS[m.type], String(m.quantity), m.reason || ''] })} name="movimientos" />
+                rows={filteredMovements.map((m) => [formatDate(m.created_at), getProductName(m.product_id), TYPE_LABELS[m.type], String(m.quantity), m.reason || ''])} name="movimientos" />
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -371,13 +381,14 @@ export default function Reports() {
               </tr></thead>
               <tbody>
                 {filteredMovements.slice(0, 100).map((m) => {
-                  const p = db.getProduct(m.product_id)
                   return (
                     <tr key={m.id} className="border-b border-border/50 last:border-0">
                       <td className="px-3 py-2 text-xs text-gray-500">{formatDate(m.created_at)}</td>
-                      <td className="px-3 py-2">{p?.name || 'Eliminado'}</td>
+                      <td className="px-3 py-2">{getProductName(m.product_id)}</td>
                       <td className="px-3 py-2"><Badge color={TYPE_COLORS[m.type]}>{TYPE_LABELS[m.type]}</Badge></td>
-                      <td className="px-3 py-2 text-right font-medium">{m.quantity}</td>
+                      <td className={`px-3 py-2 text-right font-mono font-medium ${m.type === 'entrada' || m.type === 'devolucion' ? 'text-green-400' : 'text-red-400'}`}>
+                        {m.type === 'entrada' || m.type === 'devolucion' ? '+' : '-'}{m.quantity}
+                      </td>
                       <td className="px-3 py-2 text-gray-500 text-xs">{m.reason || '—'}</td>
                     </tr>
                   )
@@ -435,9 +446,9 @@ export default function Reports() {
               rows={products.map((p) => [p.sku, p.name, String(p.stock_quantity), p.cost.toFixed(2), p.price.toFixed(2), (p.cost * p.stock_quantity).toFixed(2), (p.price * p.stock_quantity).toFixed(2), ((p.price - p.cost) * p.stock_quantity).toFixed(2)])} name="valor" />
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-4">
-            <KPI label="Inversion costo" value={formatCurrency(totalCostValue)} />
-            <KPI label="Valor venta" value={formatCurrency(totalSaleValue)} color="#C47A3A" />
-            <KPI label="Margen bruto" value={formatCurrency(margin)} color={margin >= 0 ? '#4ADE80' : '#F87171'} />
+            <KPI label="Inversion costo" value={fc(totalCostValue)} />
+            <KPI label="Valor venta" value={fc(totalSaleValue)} color="#C47A3A" />
+            <KPI label="Margen bruto" value={fc(margin)} color={margin >= 0 ? '#4ADE80' : '#F87171'} />
             <KPI label="Margen %" value={`${marginPct}%`} color="#60A5FA" sub="sobre costo" />
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
@@ -454,11 +465,11 @@ export default function Reports() {
                   <tr key={p.id} className="border-b border-border/50 last:border-0">
                     <td className="px-3 py-2"><p className="font-medium">{p.name}</p><p className="text-[10px] text-gray-500 font-mono">{p.sku}</p></td>
                     <td className="px-3 py-2 text-right">{p.stock_quantity}</td>
-                    <td className="px-3 py-2 text-right text-gray-400">{formatCurrency(p.cost)}</td>
-                    <td className="px-3 py-2 text-right text-copper">{formatCurrency(p.price)}</td>
-                    <td className="px-3 py-2 text-right">{formatCurrency(inv)}</td>
-                    <td className="px-3 py-2 text-right">{formatCurrency(val)}</td>
-                    <td className={`px-3 py-2 text-right font-medium ${m >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(m)}</td>
+                    <td className="px-3 py-2 text-right text-gray-400">{fc(p.cost)}</td>
+                    <td className="px-3 py-2 text-right text-copper">{fc(p.price)}</td>
+                    <td className="px-3 py-2 text-right">{fc(inv)}</td>
+                    <td className="px-3 py-2 text-right">{fc(val)}</td>
+                    <td className={`px-3 py-2 text-right font-medium ${m >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fc(m)}</td>
                   </tr>
                 )
               })}
@@ -467,9 +478,9 @@ export default function Reports() {
               {products.length > 0 && <tfoot><tr className="border-t border-border bg-surface text-xs font-semibold">
                 <td className="px-3 py-2">Totales</td><td className="px-3 py-2 text-right">{totalUnits}</td>
                 <td className="px-3 py-2" /><td className="px-3 py-2" />
-                <td className="px-3 py-2 text-right">{formatCurrency(totalCostValue)}</td>
-                <td className="px-3 py-2 text-right text-copper">{formatCurrency(totalSaleValue)}</td>
-                <td className={`px-3 py-2 text-right ${margin >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(margin)}</td>
+                <td className="px-3 py-2 text-right">{fc(totalCostValue)}</td>
+                <td className="px-3 py-2 text-right text-copper">{fc(totalSaleValue)}</td>
+                <td className={`px-3 py-2 text-right ${margin >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fc(margin)}</td>
               </tr></tfoot>}
             </table>
           </div>

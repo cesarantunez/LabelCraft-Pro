@@ -150,6 +150,8 @@ export default function Settings() {
   }
 
   const productCount = db.getProductCount()
+  const templateCount = db.getTemplates().length
+  const categoryCount = db.getCategories().length
   const dbSize = formatBytes(db.getDatabaseSize())
 
   return (
@@ -257,6 +259,8 @@ export default function Settings() {
               { label: 'Almacenamiento', value: 'IndexedDB (local)' },
               { label: 'Tamanio', value: dbSize },
               { label: 'Productos', value: String(productCount) },
+              { label: 'Plantillas', value: String(templateCount) },
+              { label: 'Categorias', value: String(categoryCount) },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between text-sm">
                 <span className="text-gray-500">{label}</span>

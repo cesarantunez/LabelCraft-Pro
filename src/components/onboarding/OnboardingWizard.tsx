@@ -6,6 +6,17 @@ import { Select } from '@/components/ui/Select'
 import { useAppStore } from '@/store/appStore'
 import { db } from '@/lib/database'
 
+const CURRENCY_OPTIONS = [
+  { value: 'MXN', label: 'MXN - Peso Mexicano ($)', symbol: '$' },
+  { value: 'USD', label: 'USD - Dolar ($)', symbol: '$' },
+  { value: 'EUR', label: 'EUR - Euro (€)', symbol: '€' },
+  { value: 'COP', label: 'COP - Peso Colombiano ($)', symbol: '$' },
+  { value: 'ARS', label: 'ARS - Peso Argentino ($)', symbol: '$' },
+  { value: 'CLP', label: 'CLP - Peso Chileno ($)', symbol: '$' },
+  { value: 'PEN', label: 'PEN - Sol Peruano (S/)', symbol: 'S/' },
+  { value: 'BRL', label: 'BRL - Real Brasileno (R$)', symbol: 'R$' },
+]
+
 const LABEL_PRESETS = [
   { name: 'Etiqueta pequena', w: 40, h: 20, desc: 'Ideal para precios' },
   { name: 'Etiqueta estandar', w: 50, h: 30, desc: 'Uso general' },
@@ -17,18 +28,39 @@ export function OnboardingWizard() {
   const { setOnboardingComplete, addToast } = useAppStore()
   const [step, setStep] = useState(0)
   const [businessName, setBusinessName] = useState('')
-  const [currency, setCurrency] = useState('$')
+  const [currencyCode, setCurrencyCode] = useState('MXN')
+  const [skuPrefix, setSkuPrefix] = useState('PROD')
   const [selectedPreset, setSelectedPreset] = useState(1)
 
   const handleFinish = () => {
+    // Business info
     if (businessName.trim()) {
       db.setSetting('business_name', businessName.trim())
     }
-    db.setSetting('currency_symbol', currency)
+
+    // Currency
+    const currencyOption = CURRENCY_OPTIONS.find((c) => c.value === currencyCode)
+    db.setSetting('currency_code', currencyCode)
+    db.setSetting('currency_symbol', currencyOption?.symbol || '$')
+
+    // SKU
+    if (skuPrefix.trim()) {
+      db.setSetting('sku_prefix', skuPrefix.trim().toUpperCase())
+    }
+
+    // Defaults
+    db.setSetting('sku_digits', '4')
+    db.setSetting('default_unit', 'unidad')
+    db.setSetting('low_stock_threshold', '5')
+
+    // Label defaults from selected preset
+    const preset = LABEL_PRESETS[selectedPreset]
+    db.setSetting('label_default_width', String(preset.w))
+    db.setSetting('label_default_height', String(preset.h))
+
     db.setSetting('onboarding_complete', 'true')
 
     // Create default template from selected preset
-    const preset = LABEL_PRESETS[selectedPreset]
     db.createTemplate({
       name: preset.name,
       description: preset.desc,
@@ -80,14 +112,16 @@ export function OnboardingWizard() {
         />
         <Select
           label="Moneda"
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-          options={[
-            { value: '$', label: '$ (Dolar / Peso)' },
-            { value: '€', label: '€ (Euro)' },
-            { value: '£', label: '£ (Libra)' },
-            { value: '¥', label: '¥ (Yen)' },
-          ]}
+          value={currencyCode}
+          onChange={(e) => setCurrencyCode(e.target.value)}
+          options={CURRENCY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))}
+        />
+        <Input
+          label="Prefijo de SKU"
+          value={skuPrefix}
+          onChange={(e) => setSkuPrefix(e.target.value.toUpperCase())}
+          placeholder="PROD"
+          hint={`Ejemplo: ${skuPrefix || 'PROD'}-0001`}
         />
       </div>
     </div>,

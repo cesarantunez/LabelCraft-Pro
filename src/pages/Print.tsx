@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Printer,
   Search,
@@ -24,7 +25,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useAppStore } from '@/store/appStore'
 import { db } from '@/lib/database'
 import { generateBarcodeDataURL } from '@/lib/barcode'
-import type { Product, LabelTemplate, PaperSize, PrintHistory, BarcodeType } from '@/types'
+import type { Product, LabelTemplate, PaperSize, PrintHistory, BarcodeType, CanvasElement } from '@/types'
 
 interface PrintItem {
   product: Product
@@ -55,82 +56,204 @@ function calculateAutoPackLayout(template: LabelTemplate, overridePaper?: 'a4' |
   return { columns: maxCols, rows: maxRows }
 }
 
+// ─── PDF rendering helpers ──────────────────────────────────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '')
+  return [parseInt(h.slice(0, 2), 16) || 0, parseInt(h.slice(2, 4), 16) || 0, parseInt(h.slice(4, 6), 16) || 0]
+}
+
+function mapFont(family: string): string {
+  const f = family.toLowerCase()
+  if (f.includes('courier') || f.includes('mono') || f.includes('jetbrains')) return 'courier'
+  if (f.includes('times') || f.includes('serif')) return 'times'
+  return 'helvetica'
+}
+
+function mapFontStyle(weight: string, style: string): string {
+  const isBold = weight === 'bold' || parseInt(weight) >= 700
+  const isItalic = style === 'italic'
+  if (isBold && isItalic) return 'bolditalic'
+  if (isBold) return 'bold'
+  if (isItalic) return 'italic'
+  return 'normal'
+}
+
+function substituteText(text: string, product: Product, currencySymbol: string): string {
+  return text
+    .replace(/\{\{product\.name\}\}/g, product.name)
+    .replace(/\{\{product\.sku\}\}/g, product.sku)
+    .replace(/\{\{product\.price\}\}/g, `${currencySymbol}${product.price.toFixed(2)}`)
+    .replace(/\{\{product\.barcode\}\}/g, product.barcode_value || '')
+    .replace(/\{\{product\.description\}\}/g, product.description || '')
+    .replace(/\{\{product\.stock\}\}/g, String(product.stock_quantity))
+    .replace(/\{\{price\}\}/g, product.price.toFixed(2))
+}
+
 // ─── PDF generation ────────────────────────────────────────────────────────────
 
 async function generatePDF(
   template: LabelTemplate,
   items: PrintItem[],
   onProgress: (pct: number) => void,
+  currencySymbol: string,
 ): Promise<jsPDF> {
   const paperW = template.paper_size === 'a4' ? 210 : template.paper_size === 'letter' ? 216 : 210
   const paperH = template.paper_size === 'a4' ? 297 : template.paper_size === 'letter' ? 279 : 297
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [paperW, paperH] })
 
-  const cols = template.columns
-  const rows = template.rows
+  const { columns: cols, rows, margin_top_mm: mTop, margin_left_mm: mLeft,
+    gap_x_mm: gapX, gap_y_mm: gapY, width_mm: labelW, height_mm: labelH } = template
   const labelsPerPage = cols * rows
-  const mTop = template.margin_top_mm
-  const mLeft = template.margin_left_mm
-  const gapX = template.gap_x_mm
-  const gapY = template.gap_y_mm
-  const labelW = template.width_mm
-  const labelH = template.height_mm
 
+  // Parse canvas elements from template design
+  let elements: CanvasElement[] = []
+  let bgColor = '#FFFFFF'
+  try {
+    const parsed = JSON.parse(template.canvas_json)
+    if (parsed && Array.isArray(parsed.elements)) {
+      elements = [...parsed.elements].sort((a: CanvasElement, b: CanvasElement) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+    }
+    if (typeof parsed.backgroundColor === 'string') bgColor = parsed.backgroundColor
+  } catch { /* fallback to basic layout */ }
+
+  // Expand items into individual labels
   const allLabels: Product[] = []
   for (const item of items) {
-    for (let i = 0; i < item.quantity; i++) {
-      allLabels.push(item.product)
-    }
+    for (let i = 0; i < item.quantity; i++) allLabels.push(item.product)
   }
 
   for (let li = 0; li < allLabels.length; li++) {
     const product = allLabels[li]
     const posOnPage = li % labelsPerPage
+    if (posOnPage === 0 && li > 0) pdf.addPage([paperW, paperH])
+
     const col = posOnPage % cols
     const row = Math.floor(posOnPage / cols)
-
-    if (posOnPage === 0 && li > 0) {
-      pdf.addPage([paperW, paperH])
-    }
-
     const x = mLeft + col * (labelW + gapX)
     const y = mTop + row * (labelH + gapY)
 
-    pdf.setDrawColor(200)
-    pdf.setLineWidth(0.2)
-    pdf.rect(x, y, labelW, labelH)
+    if (elements.length === 0) {
+      // Fallback: basic layout when template has no canvas elements
+      pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(x, y, labelW, labelH)
+      pdf.setFontSize(Math.min(10, labelW / 5)); pdf.setTextColor(30)
+      pdf.text(pdf.splitTextToSize(product.name, labelW - 4).slice(0, 2), x + 2, y + 5)
+      pdf.setFontSize(6); pdf.setTextColor(120); pdf.text(product.sku, x + 2, y + labelH - 8)
+      pdf.setFontSize(9); pdf.setTextColor(196, 122, 58)
+      pdf.text(`${currencySymbol}${product.price.toFixed(2)}`, x + labelW - 3, y + labelH - 3, { align: 'right' })
+      if (product.barcode_value) {
+        try {
+          const bcType = (product.barcode_type || 'code128') as BarcodeType
+          const is2D = bcType === 'qr' || bcType === 'datamatrix'
+          const dataUrl = await generateBarcodeDataURL(product.barcode_value, bcType, {
+            height: is2D ? undefined : Math.max(6, Math.round(labelH * 0.3)), scale: 2,
+          })
+          const bcH = is2D ? Math.min(labelW - 4, labelH * 0.4) : 8
+          const bcW = is2D ? bcH : labelW - 4
+          pdf.addImage(dataUrl, 'PNG', x + (labelW - bcW) / 2, y + labelH - bcH - (is2D ? 2 : 5), bcW, bcH)
+        } catch {
+          pdf.setFontSize(5); pdf.setTextColor(80)
+          pdf.text(product.barcode_value, x + labelW / 2, y + labelH - 8, { align: 'center' })
+        }
+      }
+    } else {
+      // Canvas-based rendering: render each element from the template design
+      if (bgColor !== '#FFFFFF' && bgColor !== '#ffffff' && bgColor !== 'white') {
+        pdf.setFillColor(...hexToRgb(bgColor)); pdf.rect(x, y, labelW, labelH, 'F')
+      }
 
-    pdf.setFontSize(Math.min(10, labelW / 5))
-    pdf.setTextColor(30)
-    const nameLines = pdf.splitTextToSize(product.name, labelW - 4)
-    pdf.text(nameLines.slice(0, 2), x + 2, y + 5)
+      for (const el of elements) {
+        const ex = x + el.x, ey = y + el.y, ew = el.width, eh = el.height
+        const p = el.properties as Record<string, unknown>
 
-    pdf.setFontSize(6)
-    pdf.setTextColor(120)
-    pdf.text(product.sku, x + 2, y + labelH - 8)
-
-    pdf.setFontSize(9)
-    pdf.setTextColor(196, 122, 58)
-    pdf.text(`$${product.price.toFixed(2)}`, x + labelW - 3, y + labelH - 3, { align: 'right' })
-
-    if (product.barcode_value) {
-      try {
-        const bcType = (product.barcode_type || 'code128') as BarcodeType
-        const is2D = bcType === 'qr' || bcType === 'datamatrix'
-        const dataUrl = await generateBarcodeDataURL(product.barcode_value, bcType, {
-          height: is2D ? undefined : Math.max(6, Math.round(labelH * 0.3)),
-          scale: 2,
-        })
-        const bcH = is2D ? Math.min(labelW - 4, labelH * 0.4) : 8
-        const bcW = is2D ? bcH : labelW - 4
-        const bcX = x + (labelW - bcW) / 2
-        const bcY = y + labelH - bcH - (is2D ? 2 : 5)
-        pdf.addImage(dataUrl, 'PNG', bcX, bcY, bcW, bcH)
-      } catch {
-        pdf.setFontSize(5)
-        pdf.setTextColor(80)
-        pdf.text(product.barcode_value, x + labelW / 2, y + labelH - 8, { align: 'center' })
+        switch (el.type) {
+          case 'text': case 'dynamic_text': {
+            let text = (p.text as string) || ''
+            if (el.type === 'dynamic_text') text = substituteText(text, product, currencySymbol)
+            const fontSize = (p.fontSize as number) || 12
+            const fontPt = fontSize * 0.75
+            const fontMm = fontSize / 3.78
+            const [r, g, b] = hexToRgb((p.color as string) || '#000000')
+            pdf.setFont(mapFont((p.fontFamily as string) || 'Inter'), mapFontStyle((p.fontWeight as string) || 'normal', (p.fontStyle as string) || 'normal'))
+            pdf.setFontSize(fontPt)
+            pdf.setTextColor(r, g, b)
+            const align = (p.textAlign as string) || 'left'
+            const tx = align === 'center' ? ex + ew / 2 : align === 'right' ? ex + ew : ex
+            const lines = pdf.splitTextToSize(text, ew)
+            const maxLines = Math.max(1, Math.floor(eh / fontMm))
+            pdf.text(lines.slice(0, maxLines), tx, ey + fontMm * 0.75, { align: align as 'left' | 'center' | 'right' })
+            break
+          }
+          case 'price': {
+            const fontSize = (p.fontSize as number) || 18
+            const fontPt = fontSize * 0.75
+            const fontMm = fontSize / 3.78
+            const symbol = (p.currencySymbol as string) || currencySymbol
+            const [r, g, b] = hexToRgb((p.color as string) || '#000000')
+            pdf.setFont(mapFont((p.fontFamily as string) || 'Inter'), 'bold')
+            pdf.setFontSize(fontPt)
+            pdf.setTextColor(r, g, b)
+            pdf.text(`${symbol}${product.price.toFixed(2)}`, ex, ey + fontMm * 0.75)
+            break
+          }
+          case 'barcode': {
+            let bVal = (p.value as string) || ''
+            bVal = substituteText(bVal, product, currencySymbol)
+            if (!bVal && product.barcode_value) bVal = product.barcode_value
+            const bType = (p.barcodeType as BarcodeType) || 'code128'
+            if (bVal) {
+              try {
+                const dataUrl = await generateBarcodeDataURL(bVal, bType, { height: Math.max(6, Math.round(eh * 3)), scale: 2 })
+                pdf.addImage(dataUrl, 'PNG', ex, ey, ew, eh)
+              } catch {
+                pdf.setFontSize(5); pdf.setTextColor(120, 120, 120)
+                pdf.text(bVal, ex + ew / 2, ey + eh / 2, { align: 'center' })
+              }
+            }
+            break
+          }
+          case 'qr': case 'datamatrix': {
+            let val = (p.value as string) || ''
+            val = substituteText(val, product, currencySymbol)
+            if (!val && product.barcode_value) val = product.barcode_value
+            const qType: BarcodeType = el.type === 'qr' ? 'qr' : 'datamatrix'
+            if (val) {
+              try {
+                const dataUrl = await generateBarcodeDataURL(val, qType, { scale: 4 })
+                pdf.addImage(dataUrl, 'PNG', ex, ey, ew, eh)
+              } catch {
+                pdf.setFontSize(5); pdf.setTextColor(120, 120, 120)
+                pdf.text(el.type.toUpperCase(), ex + ew / 2, ey + eh / 2, { align: 'center' })
+              }
+            }
+            break
+          }
+          case 'rectangle': {
+            const fill = p.fill as string, stroke = (p.stroke as string) || '#000000'
+            const sw = ((p.strokeWidth as number) || 1) * 0.26
+            if (fill && fill !== 'transparent') { pdf.setFillColor(...hexToRgb(fill)); pdf.rect(ex, ey, ew, eh, 'F') }
+            pdf.setDrawColor(...hexToRgb(stroke)); pdf.setLineWidth(sw); pdf.rect(ex, ey, ew, eh, 'S')
+            break
+          }
+          case 'line': {
+            const stroke = (p.stroke as string) || '#000000', sw = ((p.strokeWidth as number) || 1) * 0.26
+            pdf.setDrawColor(...hexToRgb(stroke)); pdf.setLineWidth(sw); pdf.line(ex, ey + eh / 2, ex + ew, ey + eh / 2)
+            break
+          }
+          case 'circle': {
+            const fill = p.fill as string, stroke = (p.stroke as string) || '#000000'
+            const sw = ((p.strokeWidth as number) || 1) * 0.26
+            if (fill && fill !== 'transparent') { pdf.setFillColor(...hexToRgb(fill)); pdf.ellipse(ex + ew / 2, ey + eh / 2, ew / 2, eh / 2, 'F') }
+            pdf.setDrawColor(...hexToRgb(stroke)); pdf.setLineWidth(sw); pdf.ellipse(ex + ew / 2, ey + eh / 2, ew / 2, eh / 2, 'S')
+            break
+          }
+          case 'image': {
+            const src = p.src as string
+            if (src?.startsWith('data:')) { try { pdf.addImage(src, 'PNG', ex, ey, ew, eh) } catch { /* skip */ } }
+            break
+          }
+        }
       }
     }
 
@@ -145,10 +268,12 @@ async function generatePDF(
 
 export default function Print() {
   const { addToast } = useAppStore()
+  const [searchParams] = useSearchParams()
 
   const [templates, setTemplates] = useState<LabelTemplate[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [history, setHistory] = useState<PrintHistory[]>([])
+  const [currencySymbol, setCurrencySymbol] = useState('$')
 
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<LabelTemplate | null>(null)
@@ -190,7 +315,20 @@ export default function Print() {
   useEffect(() => {
     setTemplates(db.getTemplates())
     setHistory(db.getPrintHistory(20))
-  }, [])
+    setCurrencySymbol(db.getSetting('currency_symbol') || '$')
+
+    // Auto-select products from URL params (from Products bulk print)
+    const productIdsParam = searchParams.get('productos')
+    if (productIdsParam) {
+      const ids = productIdsParam.split(',').filter(Boolean)
+      const items = new Map<string, PrintItem>()
+      for (const id of ids) {
+        const product = db.getProduct(id)
+        if (product) items.set(product.id, { product, quantity: 1 })
+      }
+      if (items.size > 0) setSelectedItems(items)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
@@ -283,7 +421,7 @@ export default function Print() {
 
     try {
       const items = Array.from(selectedItems.values())
-      const pdf = await generatePDF(effectiveTemplate, items, setProgress)
+      const pdf = await generatePDF(effectiveTemplate, items, setProgress, currencySymbol)
       setGeneratedPdf(pdf)
 
       const productIds = items.map((i) => i.product.id)
@@ -298,7 +436,7 @@ export default function Print() {
       setGenerating(false)
       setProgress(100)
     }
-  }, [effectiveTemplate, selectedTemplate, selectedItems, totalLabels, totalPages, addToast])
+  }, [effectiveTemplate, selectedTemplate, selectedItems, totalLabels, totalPages, currencySymbol, addToast])
 
   const handleDownload = useCallback(() => {
     if (!generatedPdf) return
@@ -449,7 +587,7 @@ export default function Print() {
                       <p className="truncate text-sm font-medium text-white">{product.name}</p>
                       <p className="text-xs text-gray-500">SKU: {product.sku}{product.barcode_value && ` · ${product.barcode_value}`}</p>
                     </div>
-                    <span className="shrink-0 text-xs text-gray-400">${product.price.toFixed(2)}</span>
+                    <span className="shrink-0 text-xs text-gray-400">{currencySymbol}{product.price.toFixed(2)}</span>
                     {isSelected && !useGlobalQty && (
                       <input type="number" min={1} max={9999} value={item?.quantity ?? 1}
                         onChange={(e) => setItemQty(product.id, parseInt(e.target.value) || 1)}
@@ -563,7 +701,7 @@ export default function Print() {
               </button>
               {showPreview && (
                 <div className="mt-4">
-                  <PreviewGrid template={effectiveTemplate} labels={previewLabels} />
+                  <PreviewGrid template={effectiveTemplate} labels={previewLabels} currencySymbol={currencySymbol} />
                 </div>
               )}
             </Card>
@@ -660,7 +798,7 @@ export default function Print() {
 
 // ─── Preview Grid ──────────────────────────────────────────────────────────────
 
-function PreviewGrid({ template, labels }: { template: LabelTemplate; labels: PreviewLabel[] }) {
+function PreviewGrid({ template, labels, currencySymbol }: { template: LabelTemplate; labels: PreviewLabel[]; currencySymbol: string }) {
   const cols = template.columns
   const labelsPerPage = cols * template.rows
 
@@ -692,6 +830,7 @@ function PreviewGrid({ template, labels }: { template: LabelTemplate; labels: Pr
                     <>
                       <p className="truncate px-1 text-[9px] font-medium leading-tight text-white w-full text-center">{lbl.product.name.length > 12 ? lbl.product.name.slice(0, 11) + '…' : lbl.product.name}</p>
                       <p className="text-[7px] text-copper leading-tight">{lbl.product.sku}</p>
+                      <p className="text-[7px] text-gray-400 leading-tight">{currencySymbol}{lbl.product.price.toFixed(2)}</p>
                     </>
                   ) : <div className="h-2 w-2 rounded-full bg-border" />}
                 </div>

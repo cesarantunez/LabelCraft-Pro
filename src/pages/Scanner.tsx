@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import {
   ScanLine,
   Camera,
@@ -15,6 +15,7 @@ import {
   Keyboard,
   ImagePlus,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -65,6 +66,10 @@ const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
 
 export default function Scanner() {
   const { addToast } = useAppStore()
+  const navigate = useNavigate()
+  const currencySymbol = useMemo(() => db.getSetting('currency_symbol') || '$', [])
+  const defaultUnit = useMemo(() => db.getSetting('default_unit') || 'unidad', [])
+  const defaultMinStock = useMemo(() => db.getSetting('low_stock_threshold') || '5', [])
 
   // Scanner overlay
   const [showScanner, setShowScanner] = useState(false)
@@ -97,10 +102,10 @@ export default function Scanner() {
     price: '0',
     cost: '0',
     stock_quantity: '0',
-    min_stock_alert: '5',
+    min_stock_alert: defaultMinStock,
     barcode_value: '',
     barcode_type: 'code128' as BarcodeType,
-    unit: 'unidad',
+    unit: defaultUnit,
   })
   const [isSaving, setIsSaving] = useState(false)
 
@@ -186,6 +191,10 @@ export default function Scanner() {
       addToast({ type: 'error', message: 'La cantidad debe ser mayor a 0.' })
       return
     }
+    if ((movementForm.type === 'salida' || movementForm.type === 'ajuste') && qty > selectedScan.product.stock_quantity) {
+      addToast({ type: 'error', message: `Stock insuficiente. Solo hay ${selectedScan.product.stock_quantity} ${selectedScan.product.unit} disponibles.` })
+      return
+    }
     setIsSaving(true)
     try {
       db.addMovement({
@@ -255,10 +264,10 @@ export default function Scanner() {
       price: '0',
       cost: '0',
       stock_quantity: '0',
-      min_stock_alert: '5',
+      min_stock_alert: defaultMinStock,
       barcode_value: barcode,
       barcode_type: 'code128',
-      unit: 'unidad',
+      unit: defaultUnit,
     })
     setShowProductModal(false)
     setShowCreateModal(true)
@@ -457,11 +466,11 @@ export default function Scanner() {
                     </div>
                     <div className="text-center rounded-lg bg-black/20 p-3">
                       <p className="text-xs text-gray-500 mb-1">Precio</p>
-                      <p className="text-lg font-bold text-copper">${selectedScan.product.price.toFixed(2)}</p>
+                      <p className="text-lg font-bold text-copper">{currencySymbol}{selectedScan.product.price.toFixed(2)}</p>
                     </div>
                     <div className="text-center rounded-lg bg-black/20 p-3">
                       <p className="text-xs text-gray-500 mb-1">Costo</p>
-                      <p className="text-lg font-bold">${selectedScan.product.cost.toFixed(2)}</p>
+                      <p className="text-lg font-bold">{currencySymbol}{selectedScan.product.cost.toFixed(2)}</p>
                     </div>
                   </div>
 
@@ -477,10 +486,10 @@ export default function Scanner() {
                   <Button variant="primary" size="sm" onClick={() => { setMovementForm(DEFAULT_MOVEMENT_FORM); setShowMovementModal(true) }}>
                     <ArrowUpDown className="h-3.5 w-3.5" /> Registrar movimiento
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => { addToast({ type: 'info', message: 'Abre la pagina Imprimir para generar etiquetas.' }); setShowProductModal(false) }}>
+                  <Button variant="secondary" size="sm" onClick={() => { setShowProductModal(false); navigate(`/print?productos=${selectedScan.product!.id}`) }}>
                     <Printer className="h-3.5 w-3.5" /> Imprimir etiqueta
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => { addToast({ type: 'info', message: 'Abre la pagina Productos para editar.' }); setShowProductModal(false) }}>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowProductModal(false); navigate('/products') }}>
                     <Edit3 className="h-3.5 w-3.5" /> Editar
                   </Button>
                 </div>

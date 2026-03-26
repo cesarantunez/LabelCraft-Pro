@@ -16,9 +16,11 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { useAppStore } from '@/store/appStore'
 import { db } from '@/lib/database'
-import type { Product } from '@/types'
+import type { Product, BarcodeType } from '@/types'
 
 type ImportMode = 'add' | 'replace'
+
+const VALID_BARCODE_TYPES: Set<string> = new Set(['code128', 'ean13', 'ean8', 'upca', 'code39', 'itf14', 'qr', 'datamatrix'])
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return bytes + ' B'
@@ -39,6 +41,7 @@ export default function DataPage() {
 
   const [showConfirmRestore, setShowConfirmRestore] = useState(false)
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const currencySymbol = db.getSetting('currency_symbol') || '$'
 
   // ─── Export Products ────────────────────────────────────────────────────────
 
@@ -91,9 +94,31 @@ export default function DataPage() {
           const text = data as string
           const lines = text.split('\n').filter((l) => l.trim())
           if (lines.length < 2) { addToast({ type: 'error', message: 'El archivo CSV esta vacio.' }); return }
-          const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, '').toLowerCase())
+
+          // Parse CSV respecting quoted fields with commas
+          const parseCSVLine = (line: string): string[] => {
+            const result: string[] = []
+            let current = ''
+            let inQuotes = false
+            for (let i = 0; i < line.length; i++) {
+              const ch = line[i]
+              if (ch === '"') {
+                if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+                else inQuotes = !inQuotes
+              } else if (ch === ',' && !inQuotes) {
+                result.push(current.trim())
+                current = ''
+              } else {
+                current += ch
+              }
+            }
+            result.push(current.trim())
+            return result
+          }
+
+          const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase())
           rows = lines.slice(1).map((line) => {
-            const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
+            const values = parseCSVLine(line)
             const obj: Record<string, unknown> = {}
             headers.forEach((h, i) => { obj[h] = values[i] ?? '' })
             return obj
@@ -112,8 +137,11 @@ export default function DataPage() {
           cost: parseFloat(String(row['cost'] || row['costo'] || row['Costo'] || '0')) || 0,
           stock_quantity: parseInt(String(row['stock_quantity'] || row['stock'] || row['Stock'] || '0')) || 0,
           min_stock_alert: parseInt(String(row['min_stock_alert'] || row['min_stock'] || row['Min. Stock'] || '5')) || 5,
-          barcode_value: String(row['barcode_value'] || row['codigo_barras'] || row['Codigo Barras'] || '') || undefined,
-          barcode_type: (String(row['barcode_type'] || row['tipo_codigo'] || row['Tipo Codigo'] || 'code128') as Product['barcode_type']),
+          barcode_value: String(row['barcode_value'] || row['codigo_barras'] || row['Codigo Barras'] || '') || null,
+          barcode_type: (() => {
+            const raw = String(row['barcode_type'] || row['tipo_codigo'] || row['Tipo Codigo'] || 'code128').toLowerCase()
+            return (VALID_BARCODE_TYPES.has(raw) ? raw : 'code128') as BarcodeType
+          })(),
           unit: String(row['unit'] || row['unidad'] || row['Unidad'] || 'unidad'),
         })).filter((p) => p.sku && p.name)
 
@@ -335,7 +363,7 @@ export default function DataPage() {
                 <tr key={i} className="border-b border-border/50 last:border-0">
                   <td className="px-3 py-2 font-mono text-xs text-gray-400">{p.sku}</td>
                   <td className="px-3 py-2">{p.name}</td>
-                  <td className="px-3 py-2 text-right text-copper">${(p.price || 0).toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-copper">{currencySymbol}{(p.price || 0).toFixed(2)}</td>
                   <td className="px-3 py-2 text-right">{p.stock_quantity || 0}</td>
                 </tr>
               ))}</tbody>

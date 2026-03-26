@@ -261,8 +261,9 @@ class DatabaseManager {
       sql += ' AND stock_quantity < min_stock_alert'
     }
 
-    const orderBy = filters?.orderBy || 'created_at'
-    const orderDir = filters?.orderDir || 'DESC'
+    const allowedColumns = new Set(['name', 'sku', 'price', 'cost', 'stock_quantity', 'created_at', 'updated_at'])
+    const orderBy = allowedColumns.has(filters?.orderBy || '') ? filters!.orderBy! : 'created_at'
+    const orderDir = filters?.orderDir === 'ASC' ? 'ASC' : 'DESC'
     sql += ` ORDER BY ${orderBy} ${orderDir}`
 
     if (filters?.limit) {
