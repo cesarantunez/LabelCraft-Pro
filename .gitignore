@@ -63,9 +63,3 @@ Thumbs.db
 # Supabase
 supabase/.branches
 supabase/.temp
-
-# Playwright MCP logs
-.playwright-mcp/
-
-# TypeScript build info
-tsconfig.tsbuildinfo

@@ -2,8 +2,8 @@ import type { Config } from 'tailwindcss'
 
 const config: Config = {
   content: [
-    './src/**/*.{js,ts,jsx,tsx,mdx}',
     './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
@@ -19,9 +19,6 @@ const config: Config = {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
-      },
-      transitionTimingFunction: {
-        default: 'cubic-bezier(0.4, 0, 0.2, 1)',
       },
     },
   },
