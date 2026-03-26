@@ -17,7 +17,7 @@ function StatCard({ icon: Icon, label, value, color, subtext }: {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-400">{label}</p>
-          <p className="mt-1 text-2xl font-bold">{value}</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold truncate">{value}</p>
           {subtext && <p className="mt-1 text-xs text-gray-500">{subtext}</p>}
         </div>
         <div className="rounded-lg p-2" style={{ backgroundColor: color + '20' }}>
@@ -140,7 +140,7 @@ export default function Dashboard() {
           icon={Package}
           label="Productos activos"
           value={stats.totalProducts}
-          color="#C47A3A"
+          color="#D4894A"
         />
         <StatCard
           icon={AlertTriangle}
@@ -152,7 +152,7 @@ export default function Dashboard() {
           icon={Printer}
           label="Etiquetas impresas"
           value={stats.labelsPrintedMonth}
-          color="#C47A3A"
+          color="#D4894A"
           subtext={`Hoy: ${stats.labelsPrintedToday} | Semana: ${stats.labelsPrintedWeek}`}
         />
         <StatCard
@@ -227,7 +227,7 @@ export default function Dashboard() {
                   return (
                     <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group">
                       {/* Values on hover */}
-                      <div className="text-[10px] text-gray-600 group-hover:text-gray-300 transition-colors h-4 flex items-center gap-1">
+                      <div className="text-[10px] text-gray-500 group-hover:text-gray-300 transition-colors h-4 flex items-center gap-1">
                         {(day.entradas > 0 || day.salidas > 0) && (
                           <>
                             {day.entradas > 0 && <span className="text-emerald-400/70">{day.entradas}</span>}
@@ -282,14 +282,14 @@ export default function Dashboard() {
                 const ActivityIcon = getActivityIcon(activity.type)
                 const iconColor = getActivityColor(activity.type)
                 return (
-                  <li key={i} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5">
+                  <li key={i} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
                         <ActivityIcon className={`h-4 w-4 ${iconColor}`} />
                       </div>
-                      <span className="text-sm">{activity.description}</span>
+                      <span className="text-sm truncate">{activity.description}</span>
                     </div>
-                    <span className="text-xs text-gray-500 whitespace-nowrap ml-4">{formatRelativeDate(activity.date)}</span>
+                    <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">{formatRelativeDate(activity.date)}</span>
                   </li>
                 )
               })}

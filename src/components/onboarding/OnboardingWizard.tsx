@@ -147,7 +147,7 @@ export function OnboardingWizard() {
                 style={{
                   width: Math.min(preset.w * 0.6, 60),
                   height: Math.min(preset.h * 0.6, 40),
-                  borderColor: selectedPreset === i ? '#C47A3A' : '#555',
+                  borderColor: selectedPreset === i ? '#D4894A' : '#555',
                 }}
               />
             </div>
@@ -183,7 +183,7 @@ export function OnboardingWizard() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      <div className="w-full max-w-2xl px-6">
+      <div className="w-full max-w-2xl px-4 sm:px-6">
         {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-8">
           {steps.map((_, i) => (
@@ -197,7 +197,7 @@ export function OnboardingWizard() {
         </div>
 
         {/* Content */}
-        <div className="min-h-[400px] flex items-center justify-center">
+        <div className="min-h-72 sm:min-h-[400px] flex items-center justify-center">
           {steps[step]}
         </div>
 

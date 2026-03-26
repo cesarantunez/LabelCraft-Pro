@@ -251,8 +251,8 @@ export default function Editor() {
 
       // Selection
       if (el.id === store.selectedElementId) {
-        ctx.strokeStyle = '#C47A3A'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 2]); ctx.strokeRect(ex - 2, ey - 2, ew + 4, eh + 4); ctx.setLineDash([])
-        ctx.fillStyle = '#C47A3A'
+        ctx.strokeStyle = '#D4894A'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 2]); ctx.strokeRect(ex - 2, ey - 2, ew + 4, eh + 4); ctx.setLineDash([])
+        ctx.fillStyle = '#D4894A'
         for (const h of [{ x: ex - 4, y: ey - 4 }, { x: ex + ew, y: ey - 4 }, { x: ex - 4, y: ey + eh }, { x: ex + ew, y: ey + eh }]) ctx.fillRect(h.x, h.y, 5, 5)
       }
       ctx.restore()
@@ -351,43 +351,58 @@ export default function Editor() {
     { type: 'price', icon: DollarSign, label: 'Precio' },
   ]
 
+  const [showMobileProps, setShowMobileProps] = useState(false)
+
+  // Auto-show mobile properties panel when element is selected
+  useEffect(() => {
+    if (sel && window.innerWidth < 1024) setShowMobileProps(true)
+    if (!sel) setShowMobileProps(false)
+  }, [sel])
+
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-4">
-      {/* Left - Tools */}
-      <div className="flex w-14 flex-col gap-1 rounded-xl border border-border bg-surface p-2">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-6rem)] sm:h-[calc(100vh-7rem)] gap-2 lg:gap-4">
+      {/* Left - Tools (horizontal on mobile, vertical on desktop) */}
+      <div className="flex lg:flex-col gap-1 rounded-xl border border-border bg-surface p-1.5 lg:p-2 lg:w-14 overflow-x-auto lg:overflow-x-visible">
         {tools.map(({ type, icon: Icon, label }) => (
-          <button key={type} onClick={() => addElementToCenter(type)} className="flex flex-col items-center gap-0.5 rounded-lg p-2 text-gray-400 hover:bg-copper/10 hover:text-copper transition-default" title={label}>
+          <button key={type} onClick={() => addElementToCenter(type)} className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 lg:p-2 text-gray-400 hover:bg-copper/10 hover:text-copper transition-default shrink-0" title={label}>
             <Icon className="h-4 w-4" />
-            <span className="text-[8px] leading-tight">{label}</span>
+            <span className="text-[8px] leading-tight hidden lg:block">{label}</span>
           </button>
         ))}
       </div>
 
       {/* Center - Canvas */}
-      <div className="flex flex-1 flex-col gap-2">
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
-          <Input value={store.templateName} onChange={(e) => store.setTemplateName(e.target.value)} className="!bg-transparent !border-0 !px-1 font-medium w-48" />
+      <div className="flex flex-1 flex-col gap-2 min-h-0">
+        <div className="flex items-center gap-1 sm:gap-2 rounded-xl border border-border bg-surface px-2 sm:px-3 py-1.5 sm:py-2 overflow-x-auto">
+          <Input value={store.templateName} onChange={(e) => store.setTemplateName(e.target.value)} className="!bg-transparent !border-0 !px-1 font-medium w-28 sm:w-48 shrink-0" />
           <div className="flex-1" />
-          <button onClick={store.undo} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Deshacer"><Undo2 className="h-4 w-4" /></button>
-          <button onClick={store.redo} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Rehacer"><Redo2 className="h-4 w-4" /></button>
-          <div className="h-5 w-px bg-border mx-1" />
-          <button onClick={() => store.setZoom(store.zoom - 0.1)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default"><ZoomOut className="h-4 w-4" /></button>
-          <span className="text-xs text-gray-400 w-12 text-center">{Math.round(store.zoom * 100)}%</span>
-          <button onClick={() => store.setZoom(store.zoom + 0.1)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default"><ZoomIn className="h-4 w-4" /></button>
-          <div className="h-5 w-px bg-border mx-1" />
-          <button onClick={store.toggleGrid} className={`rounded p-1.5 transition-default ${store.showGrid ? 'text-copper' : 'text-gray-400'}`} title="Grilla"><Grid3X3 className="h-4 w-4" /></button>
-          <button onClick={store.toggleSnap} className={`rounded p-1.5 transition-default ${store.snapToGrid ? 'text-copper' : 'text-gray-400'}`} title="Snap"><Magnet className="h-4 w-4" /></button>
-          <div className="h-5 w-px bg-border mx-1" />
-          <Button variant="secondary" size="sm" onClick={() => setShowSettingsModal(true)}>{store.canvas.width}x{store.canvas.height}mm</Button>
-          <Button size="sm" onClick={() => store.templateId ? handleSave() : setShowSaveModal(true)}><Save className="h-3 w-3" /> Guardar</Button>
+          <button onClick={store.undo} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default shrink-0" aria-label="Deshacer" title="Deshacer"><Undo2 className="h-4 w-4" /></button>
+          <button onClick={store.redo} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default shrink-0" aria-label="Rehacer" title="Rehacer"><Redo2 className="h-4 w-4" /></button>
+          <div className="h-5 w-px bg-border mx-0.5 shrink-0 hidden sm:block" />
+          <button onClick={() => store.setZoom(store.zoom - 0.1)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default shrink-0 hidden sm:block" aria-label="Alejar"><ZoomOut className="h-4 w-4" /></button>
+          <span className="text-xs text-gray-400 w-10 text-center shrink-0 hidden sm:block">{Math.round(store.zoom * 100)}%</span>
+          <button onClick={() => store.setZoom(store.zoom + 0.1)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default shrink-0 hidden sm:block" aria-label="Acercar"><ZoomIn className="h-4 w-4" /></button>
+          <div className="h-5 w-px bg-border mx-0.5 shrink-0 hidden sm:block" />
+          <button onClick={store.toggleGrid} className={`rounded p-1.5 transition-default shrink-0 ${store.showGrid ? 'text-copper' : 'text-gray-400'}`} aria-label="Grilla" title="Grilla"><Grid3X3 className="h-4 w-4" /></button>
+          <button onClick={store.toggleSnap} className={`rounded p-1.5 transition-default shrink-0 hidden sm:block ${store.snapToGrid ? 'text-copper' : 'text-gray-400'}`} aria-label="Snap" title="Snap"><Magnet className="h-4 w-4" /></button>
+          <div className="h-5 w-px bg-border mx-0.5 shrink-0" />
+          <Button variant="secondary" size="sm" onClick={() => setShowSettingsModal(true)} className="shrink-0 !text-xs !px-2">{store.canvas.width}x{store.canvas.height}mm</Button>
+          <Button size="sm" onClick={() => store.templateId ? handleSave() : setShowSaveModal(true)} className="shrink-0"><Save className="h-3 w-3" /> <span className="hidden sm:inline">Guardar</span></Button>
         </div>
-        <div ref={containerRef} className="flex-1 overflow-hidden rounded-xl border border-border bg-[#333] cursor-crosshair">
+        <div ref={containerRef} className="flex-1 overflow-hidden rounded-xl border border-border bg-[#333] cursor-crosshair min-h-0">
           <canvas ref={canvasRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel} className="h-full w-full" />
         </div>
       </div>
 
-      {/* Right - Properties */}
-      <div className="w-64 overflow-y-auto rounded-xl border border-border bg-surface p-4">
+      {/* Right - Properties (side panel on desktop, bottom sheet on mobile) */}
+      {showMobileProps && (
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setShowMobileProps(false)} />
+      )}
+      <div className={`
+        fixed bottom-0 left-0 right-0 z-50 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 transition-transform duration-300
+        lg:static lg:w-64 lg:max-h-none lg:rounded-xl lg:rounded-t-xl lg:border lg:translate-y-0
+        ${showMobileProps ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}
+      `}>
         {sel ? (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-copper">Propiedades</h3>
@@ -447,11 +462,11 @@ export default function Editor() {
 
             <div className="border-t border-border pt-3">
               <div className="flex flex-wrap gap-1">
-                <button onClick={() => store.duplicateElement(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Duplicar"><Copy className="h-4 w-4" /></button>
-                <button onClick={() => store.bringToFront(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Al frente"><ArrowUpToLine className="h-4 w-4" /></button>
-                <button onClick={() => store.sendToBack(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" title="Atras"><ArrowDownToLine className="h-4 w-4" /></button>
-                <button onClick={() => store.updateElement(sel.id, { locked: !sel.locked })} className={`rounded p-1.5 transition-default ${sel.locked ? 'text-warning' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} title={sel.locked ? 'Desbloquear' : 'Bloquear'}>{sel.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}</button>
-                <button onClick={() => store.deleteElement(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-error/10 hover:text-error transition-default" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                <button onClick={() => store.duplicateElement(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" aria-label="Duplicar" title="Duplicar"><Copy className="h-4 w-4" /></button>
+                <button onClick={() => store.bringToFront(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" aria-label="Al frente" title="Al frente"><ArrowUpToLine className="h-4 w-4" /></button>
+                <button onClick={() => store.sendToBack(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-white/5 hover:text-white transition-default" aria-label="Atras" title="Atras"><ArrowDownToLine className="h-4 w-4" /></button>
+                <button onClick={() => store.updateElement(sel.id, { locked: !sel.locked })} className={`rounded p-1.5 transition-default ${sel.locked ? 'text-warning' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} aria-label={sel.locked ? 'Desbloquear' : 'Bloquear'} title={sel.locked ? 'Desbloquear' : 'Bloquear'}>{sel.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}</button>
+                <button onClick={() => store.deleteElement(sel.id)} className="rounded p-1.5 text-gray-400 hover:bg-error/10 hover:text-error transition-default" aria-label="Eliminar" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
           </div>
@@ -475,7 +490,7 @@ export default function Editor() {
                 {db.getTemplates().map((t) => (
                   <button key={t.id} onClick={() => navigate(`/editor/${t.id}`)}
                     className={`w-full text-left rounded-lg px-2 py-1.5 text-xs transition-default ${t.id === store.templateId ? 'bg-copper/10 text-copper' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-                    {t.name} <span className="text-gray-600 ml-1">{t.width_mm}x{t.height_mm}mm</span>
+                    {t.name} <span className="text-gray-500 ml-1">{t.width_mm}x{t.height_mm}mm</span>
                   </button>
                 ))}
               </div>

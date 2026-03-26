@@ -316,7 +316,7 @@ export default function Scanner() {
             <div className={`pointer-events-none absolute inset-0 z-10 rounded-xl border-4 transition-all duration-150 ${flashActive ? 'border-green-400 bg-green-400/10 opacity-100' : 'border-transparent opacity-0'}`} />
 
             {/* Idle state */}
-            <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="flex flex-col items-center justify-center py-10 sm:py-16 px-4 sm:px-6">
               <div className="relative mb-6">
                 <ScanLine className="h-20 w-20 text-copper/20" />
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -364,7 +364,7 @@ export default function Scanner() {
 
         {/* Scan history sidebar */}
         <div className="flex flex-col gap-4">
-          <Card className="!p-0 flex flex-col" style={{ maxHeight: 520 }}>
+          <Card className="!p-0 flex flex-col max-h-80 sm:max-h-[520px]">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
               <Clock className="h-4 w-4 text-copper" />
               <span className="text-sm font-medium">Historial de sesion</span>
@@ -380,7 +380,7 @@ export default function Scanner() {
 
             {scanHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 px-4">
-                <ScanLine className="h-8 w-8 text-gray-600 mb-2" />
+                <ScanLine className="h-8 w-8 text-gray-500 mb-2" />
                 <p className="text-xs text-gray-500 text-center">Los codigos escaneados aparecen aqui</p>
               </div>
             ) : (
@@ -394,11 +394,11 @@ export default function Scanner() {
                       <p className="text-sm font-medium truncate">{record.product ? record.product.name : 'No registrado'}</p>
                       <p className="text-xs text-gray-500 font-mono truncate">{record.barcode}</p>
                       {record.format && record.format !== 'Manual' && (
-                        <p className="text-[10px] text-gray-600">{record.format}</p>
+                        <p className="text-[10px] text-gray-500">{record.format}</p>
                       )}
                     </div>
                     <div className="flex flex-col items-end shrink-0 mt-0.5">
-                      <span className="text-[10px] text-gray-600">{formatTime(record.scannedAt)}</span>
+                      <span className="text-[10px] text-gray-500">{formatTime(record.scannedAt)}</span>
                       <span className="text-[9px] text-gray-700">{sourceIcon(record.source)}</span>
                     </div>
                   </button>
@@ -462,7 +462,7 @@ export default function Scanner() {
                     <div className="text-center rounded-lg bg-black/20 p-3">
                       <p className="text-xs text-gray-500 mb-1">Stock</p>
                       <p className={`text-lg font-bold ${selectedScan.product.stock_quantity < selectedScan.product.min_stock_alert ? 'text-amber-400' : 'text-white'}`}>{selectedScan.product.stock_quantity}</p>
-                      <p className="text-[10px] text-gray-600">{selectedScan.product.unit}</p>
+                      <p className="text-[10px] text-gray-500">{selectedScan.product.unit}</p>
                     </div>
                     <div className="text-center rounded-lg bg-black/20 p-3">
                       <p className="text-xs text-gray-500 mb-1">Precio</p>

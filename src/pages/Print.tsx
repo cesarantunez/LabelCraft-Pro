@@ -558,7 +558,7 @@ export default function Print() {
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-copper text-xs font-bold text-white">2</span>
                 <h2 className="font-semibold">Seleccionar productos</h2>
-                {selectedItems.size > 0 && <Badge color="#C47A3A">{selectedItems.size} sel.</Badge>}
+                {selectedItems.size > 0 && <Badge color="#D4894A">{selectedItems.size} sel.</Badge>}
               </div>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={selectAll}><CheckSquare className="h-3.5 w-3.5" /> Todos</Button>
@@ -695,7 +695,7 @@ export default function Print() {
                 <div className="flex items-center gap-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-copper text-xs font-bold text-white">4</span>
                   <h2 className="font-semibold">Vista previa</h2>
-                  <Badge color="#C47A3A" variant="outline">{Math.min(previewLabels.length, labelsPerPage * 2)} etiquetas</Badge>
+                  <Badge color="#D4894A" variant="outline">{Math.min(previewLabels.length, labelsPerPage * 2)} etiquetas</Badge>
                 </div>
                 {showPreview ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
               </button>
@@ -710,7 +710,7 @@ export default function Print() {
 
         {/* RIGHT: Actions */}
         <div className="flex flex-col gap-4">
-          <Card className="sticky top-4">
+          <Card className="xl:sticky xl:top-4">
             <h2 className="mb-4 font-semibold">Generar e Imprimir</h2>
             {!selectedTemplateId && <p className="mb-3 text-xs text-gray-500">Selecciona una plantilla para continuar.</p>}
             {selectedTemplateId && selectedItems.size === 0 && <p className="mb-3 text-xs text-gray-500">Selecciona al menos un producto.</p>}

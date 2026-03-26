@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Settings as SettingsIcon,
   Building2,
@@ -11,6 +12,12 @@ import {
   MapPin,
   Phone,
   Trash2,
+  Shield,
+  Lock,
+  Eye,
+  EyeOff,
+  FileText,
+  Clock,
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -31,6 +38,11 @@ interface SettingsForm {
   low_stock_threshold: string
   label_default_width: string
   label_default_height: string
+  inactivity_timeout: string
+  lock_pin: string
+  retention_movements_days: string
+  retention_print_days: string
+  retention_audit_days: string
 }
 
 const CURRENCY_OPTIONS = [
@@ -48,6 +60,24 @@ const SYMBOL_MAP: Record<string, string> = {
   MXN: '$', USD: '$', EUR: '€', COP: '$', ARS: '$', CLP: '$', PEN: 'S/', BRL: 'R$',
 }
 
+const TIMEOUT_OPTIONS = [
+  { value: '0', label: 'Desactivado' },
+  { value: '5', label: '5 minutos' },
+  { value: '15', label: '15 minutos' },
+  { value: '30', label: '30 minutos' },
+  { value: '60', label: '1 hora' },
+  { value: '120', label: '2 horas' },
+  { value: '480', label: '8 horas' },
+]
+
+const RETENTION_OPTIONS = [
+  { value: '0', label: 'Sin limite (conservar todo)' },
+  { value: '30', label: '30 dias' },
+  { value: '90', label: '90 dias' },
+  { value: '180', label: '6 meses' },
+  { value: '365', label: '1 ano' },
+]
+
 const UNIT_OPTIONS = [
   { value: 'unidad', label: 'Unidad' },
   { value: 'kg', label: 'Kilogramo' },
@@ -64,6 +94,7 @@ function formatBytes(bytes: number) {
 }
 
 export default function Settings() {
+  const navigate = useNavigate()
   const { addToast } = useAppStore()
   const [form, setForm] = useState<SettingsForm>({
     business_name: '',
@@ -77,10 +108,16 @@ export default function Settings() {
     low_stock_threshold: '5',
     label_default_width: '50',
     label_default_height: '30',
+    inactivity_timeout: '0',
+    lock_pin: '',
+    retention_movements_days: '0',
+    retention_print_days: '0',
+    retention_audit_days: '0',
   })
   const [hasChanges, setHasChanges] = useState(false)
   const [saving, setSaving] = useState(false)
   const [vacuuming, setVacuuming] = useState(false)
+  const [showPinField, setShowPinField] = useState(false)
 
   useEffect(() => {
     const loaded: SettingsForm = {
@@ -95,6 +132,11 @@ export default function Settings() {
       low_stock_threshold: db.getSetting('low_stock_threshold') || '5',
       label_default_width: db.getSetting('label_default_width') || '50',
       label_default_height: db.getSetting('label_default_height') || '30',
+      inactivity_timeout: db.getSetting('inactivity_timeout') || '0',
+      lock_pin: db.getSetting('lock_pin') || '',
+      retention_movements_days: db.getSetting('retention_movements_days') || '0',
+      retention_print_days: db.getSetting('retention_print_days') || '0',
+      retention_audit_days: db.getSetting('retention_audit_days') || '0',
     }
     setForm(loaded)
   }, [])
@@ -132,6 +174,11 @@ export default function Settings() {
       low_stock_threshold: db.getSetting('low_stock_threshold') || '5',
       label_default_width: db.getSetting('label_default_width') || '50',
       label_default_height: db.getSetting('label_default_height') || '30',
+      inactivity_timeout: db.getSetting('inactivity_timeout') || '0',
+      lock_pin: db.getSetting('lock_pin') || '',
+      retention_movements_days: db.getSetting('retention_movements_days') || '0',
+      retention_print_days: db.getSetting('retention_print_days') || '0',
+      retention_audit_days: db.getSetting('retention_audit_days') || '0',
     }
     setForm(loaded)
     setHasChanges(false)
@@ -247,6 +294,88 @@ export default function Settings() {
           </div>
         </Card>
 
+        {/* Security */}
+        <Card>
+          <div className="flex items-center gap-2 mb-4">
+            <Shield className="h-5 w-5 text-copper" />
+            <h2 className="font-semibold">Seguridad</h2>
+          </div>
+          <div className="space-y-3">
+            <Select
+              label="Bloqueo por inactividad"
+              value={form.inactivity_timeout}
+              onChange={(e) => updateField('inactivity_timeout', e.target.value)}
+              options={TIMEOUT_OPTIONS}
+            />
+            {form.inactivity_timeout !== '0' && (
+              <>
+                <div className="relative">
+                  <Input
+                    label="PIN de desbloqueo (opcional)"
+                    type={showPinField ? 'text' : 'password'}
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={form.lock_pin}
+                    onChange={(e) => updateField('lock_pin', e.target.value.replace(/\D/g, ''))}
+                    placeholder="4-6 digitos"
+                    hint={form.lock_pin ? `${form.lock_pin.length} digitos configurados` : 'Sin PIN: un click desbloquea'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPinField(!showPinField)}
+                    className="absolute right-3 top-8 text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {showPinField ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {form.lock_pin && form.lock_pin.length > 0 && form.lock_pin.length < 4 && (
+                  <p className="text-xs text-amber-400">El PIN debe tener al menos 4 digitos</p>
+                )}
+              </>
+            )}
+          </div>
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-background px-3 py-2 text-xs text-gray-500">
+            <Lock className="h-3.5 w-3.5 text-copper shrink-0" />
+            {form.inactivity_timeout === '0'
+              ? 'El bloqueo automatico esta desactivado.'
+              : `La pantalla se bloqueara tras ${form.inactivity_timeout} min de inactividad.`}
+          </div>
+        </Card>
+
+        {/* Data Retention */}
+        <Card>
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="h-5 w-5 text-copper" />
+            <h2 className="font-semibold">Retencion de Datos</h2>
+          </div>
+          <div className="space-y-3">
+            <Select
+              label="Movimientos de inventario"
+              value={form.retention_movements_days}
+              onChange={(e) => updateField('retention_movements_days', e.target.value)}
+              options={RETENTION_OPTIONS}
+            />
+            <Select
+              label="Historial de impresion"
+              value={form.retention_print_days}
+              onChange={(e) => updateField('retention_print_days', e.target.value)}
+              options={RETENTION_OPTIONS}
+            />
+            <Select
+              label="Log de auditoria"
+              value={form.retention_audit_days}
+              onChange={(e) => updateField('retention_audit_days', e.target.value)}
+              options={RETENTION_OPTIONS}
+            />
+          </div>
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-background px-3 py-2 text-xs text-gray-500">
+            <Clock className="h-3.5 w-3.5 text-copper shrink-0" />
+            {form.retention_movements_days === '0' && form.retention_print_days === '0' && form.retention_audit_days === '0'
+              ? 'Todos los datos se conservan indefinidamente.'
+              : 'Los registros antiguos se eliminan automaticamente al iniciar la app.'}
+          </div>
+        </Card>
+
         {/* Database info */}
         <Card>
           <div className="flex items-center gap-2 mb-4">
@@ -301,7 +430,15 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <div className="mt-4 rounded-lg bg-background px-3 py-2 text-xs text-gray-500">
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" onClick={() => navigate('/legal')}>
+              <FileText className="h-3.5 w-3.5" /> Documentos Legales
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/ayuda')}>
+              <Info className="h-3.5 w-3.5" /> Manual de Usuario
+            </Button>
+          </div>
+          <div className="mt-3 rounded-lg bg-background px-3 py-2 text-xs text-gray-500">
             Disenado para gestionar productos, generar etiquetas con codigos de barras, y controlar inventario desde cualquier dispositivo.
           </div>
         </Card>

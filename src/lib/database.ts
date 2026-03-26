@@ -100,7 +100,7 @@ class DatabaseManager {
           CREATE TABLE IF NOT EXISTS categories (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
-            color TEXT DEFAULT '#C47A3A',
+            color TEXT DEFAULT '#D4894A',
             icon TEXT DEFAULT 'tag',
             created_at TEXT DEFAULT (datetime('now'))
           );
@@ -175,6 +175,23 @@ class DatabaseManager {
           CREATE INDEX IF NOT EXISTS idx_inventory_movements_product ON inventory_movements(product_id);
           CREATE INDEX IF NOT EXISTS idx_inventory_movements_date ON inventory_movements(created_at);
           CREATE INDEX IF NOT EXISTS idx_print_history_date ON print_history(printed_at);
+        `,
+      },
+      {
+        version: 2,
+        name: 'audit_log',
+        sql: `
+          CREATE TABLE IF NOT EXISTS audit_log (
+            id TEXT PRIMARY KEY,
+            action TEXT NOT NULL,
+            entity_type TEXT,
+            entity_id TEXT,
+            details TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_audit_log_date ON audit_log(created_at);
+          CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
         `,
       },
     ]
@@ -298,28 +315,34 @@ class DatabaseManager {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.sku, data.name, data.description, data.category_id, data.price, data.cost, data.stock_quantity, data.min_stock_alert, data.barcode_value, data.barcode_type, data.unit, data.image_blob, data.is_active, now, now]
     )
+    this.addAuditLog('create', 'product', id, `Producto creado: ${data.name} (${data.sku})`)
     return id
   }
 
   updateProduct(id: string, data: Partial<Omit<Product, 'id' | 'created_at'>>): void {
+    const allowedCols = new Set(['sku', 'name', 'description', 'category_id', 'price', 'cost', 'stock_quantity', 'min_stock_alert', 'barcode_value', 'barcode_type', 'unit', 'image_blob', 'is_active'])
     const fields: string[] = []
     const params: unknown[] = []
 
     for (const [key, value] of Object.entries(data)) {
-      if (key === 'id' || key === 'created_at') continue
+      if (!allowedCols.has(key)) continue
       fields.push(`${key} = ?`)
       params.push(value)
     }
 
+    if (fields.length === 0) return
     fields.push('updated_at = ?')
     params.push(this.now())
     params.push(id)
 
     this.run(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, params)
+    this.addAuditLog('update', 'product', id, `Campos: ${Object.keys(data).filter(k => allowedCols.has(k)).join(', ')}`)
   }
 
   deleteProduct(id: string): void {
+    const product = this.getProduct(id)
     this.run('DELETE FROM products WHERE id = ?', [id])
+    if (product) this.addAuditLog('delete', 'product', id, `Producto eliminado: ${product.name}`)
   }
 
   getProductCount(): number {
@@ -352,25 +375,31 @@ class DatabaseManager {
     this.run('INSERT INTO categories (id, name, color, icon) VALUES (?, ?, ?, ?)', [
       id,
       name,
-      color || '#C47A3A',
+      color || '#D4894A',
       icon || 'tag',
     ])
+    this.addAuditLog('create', 'category', id, `Categoria creada: ${name}`)
     return id
   }
 
   updateCategory(id: string, data: Partial<Omit<Category, 'id' | 'created_at'>>): void {
+    const allowedCols = new Set(['name', 'color', 'icon'])
     const fields: string[] = []
     const params: unknown[] = []
     for (const [key, value] of Object.entries(data)) {
+      if (!allowedCols.has(key)) continue
       fields.push(`${key} = ?`)
       params.push(value)
     }
+    if (fields.length === 0) return
     params.push(id)
     this.run(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`, params)
   }
 
   deleteCategory(id: string): void {
+    const cat = this.getCategory(id)
     this.run('DELETE FROM categories WHERE id = ?', [id])
+    if (cat) this.addAuditLog('delete', 'category', id, `Categoria eliminada: ${cat.name}`)
   }
 
   // === Label Templates CRUD ===
@@ -391,17 +420,20 @@ class DatabaseManager {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.name, data.description, data.width_mm, data.height_mm, data.canvas_json, data.is_default, data.paper_size, data.columns, data.rows, data.margin_top_mm, data.margin_left_mm, data.gap_x_mm, data.gap_y_mm, now, now]
     )
+    this.addAuditLog('create', 'template', id, `Plantilla creada: ${data.name} (${data.width_mm}x${data.height_mm}mm)`)
     return id
   }
 
   updateTemplate(id: string, data: Partial<Omit<LabelTemplate, 'id' | 'created_at'>>): void {
+    const allowedCols = new Set(['name', 'description', 'width_mm', 'height_mm', 'canvas_json', 'is_default', 'paper_size', 'columns', 'rows', 'margin_top_mm', 'margin_left_mm', 'gap_x_mm', 'gap_y_mm'])
     const fields: string[] = []
     const params: unknown[] = []
     for (const [key, value] of Object.entries(data)) {
-      if (key === 'id' || key === 'created_at') continue
+      if (!allowedCols.has(key)) continue
       fields.push(`${key} = ?`)
       params.push(value)
     }
+    if (fields.length === 0) return
     fields.push('updated_at = ?')
     params.push(this.now())
     params.push(id)
@@ -409,7 +441,9 @@ class DatabaseManager {
   }
 
   deleteTemplate(id: string): void {
+    const tmpl = this.getTemplate(id)
     this.run('DELETE FROM label_templates WHERE id = ?', [id])
+    if (tmpl) this.addAuditLog('delete', 'template', id, `Plantilla eliminada: ${tmpl.name}`)
   }
 
   // === Print History ===
@@ -427,6 +461,7 @@ class DatabaseManager {
       'INSERT INTO print_history (id, template_id, product_ids, quantity, status) VALUES (?, ?, ?, ?, ?)',
       [id, templateId, JSON.stringify(productIds), quantity, status]
     )
+    this.addAuditLog('print', 'print_history', id, `Impresion: ${quantity} etiquetas, ${productIds.length} productos`)
     return id
   }
 
@@ -504,6 +539,7 @@ class DatabaseManager {
       [data.quantity * multiplier, this.now(), data.product_id]
     )
 
+    this.addAuditLog('movement', 'product', data.product_id, `${data.type}: ${data.quantity} unidades${data.reason ? ` — ${data.reason}` : ''}`)
     return id
   }
 
@@ -554,6 +590,7 @@ class DatabaseManager {
   }
 
   exportDatabase(): Uint8Array {
+    this.addAuditLog('export', 'database', undefined, 'Backup de base de datos exportado')
     return this.db.export()
   }
 
@@ -563,6 +600,87 @@ class DatabaseManager {
     })
     this.database = new SQL.Database(new Uint8Array(data))
     await this.persistToIndexedDB()
+  }
+
+  // === Audit Log ===
+
+  addAuditLog(action: string, entityType?: string, entityId?: string, details?: string): void {
+    const id = this.generateId()
+    this.run(
+      'INSERT INTO audit_log (id, action, entity_type, entity_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, action, entityType || null, entityId || null, details || null, this.now()]
+    )
+  }
+
+  getAuditLogs(filters?: {
+    action?: string
+    entityType?: string
+    limit?: number
+    offset?: number
+  }): Array<{ id: string; action: string; entity_type: string | null; entity_id: string | null; details: string | null; created_at: string }> {
+    let sql = 'SELECT * FROM audit_log WHERE 1=1'
+    const params: unknown[] = []
+
+    if (filters?.action) {
+      sql += ' AND action = ?'
+      params.push(filters.action)
+    }
+    if (filters?.entityType) {
+      sql += ' AND entity_type = ?'
+      params.push(filters.entityType)
+    }
+
+    sql += ' ORDER BY created_at DESC'
+
+    if (filters?.limit) {
+      sql += ' LIMIT ?'
+      params.push(filters.limit)
+      if (filters?.offset) {
+        sql += ' OFFSET ?'
+        params.push(filters.offset)
+      }
+    }
+
+    return this.queryAll(sql, params)
+  }
+
+  getAuditLogCount(): number {
+    const result = this.db.exec('SELECT COUNT(*) as count FROM audit_log')
+    return result.length > 0 ? (result[0].values[0][0] as number) : 0
+  }
+
+  // === Data Retention ===
+
+  purgeOldMovements(daysToKeep: number): number {
+    const cutoff = new Date(Date.now() - daysToKeep * 86400000).toISOString().replace('T', ' ').substring(0, 19)
+    const countResult = this.db.exec('SELECT COUNT(*) FROM inventory_movements WHERE created_at < ?', [cutoff])
+    const count = countResult.length > 0 ? (countResult[0].values[0][0] as number) : 0
+    if (count > 0) {
+      this.run('DELETE FROM inventory_movements WHERE created_at < ?', [cutoff])
+      this.addAuditLog('purge_movements', 'system', undefined, `Eliminados ${count} movimientos con mas de ${daysToKeep} dias`)
+    }
+    return count
+  }
+
+  purgeOldPrintHistory(daysToKeep: number): number {
+    const cutoff = new Date(Date.now() - daysToKeep * 86400000).toISOString().replace('T', ' ').substring(0, 19)
+    const countResult = this.db.exec('SELECT COUNT(*) FROM print_history WHERE printed_at < ?', [cutoff])
+    const count = countResult.length > 0 ? (countResult[0].values[0][0] as number) : 0
+    if (count > 0) {
+      this.run('DELETE FROM print_history WHERE printed_at < ?', [cutoff])
+      this.addAuditLog('purge_print_history', 'system', undefined, `Eliminados ${count} registros de impresion con mas de ${daysToKeep} dias`)
+    }
+    return count
+  }
+
+  purgeOldAuditLogs(daysToKeep: number): number {
+    const cutoff = new Date(Date.now() - daysToKeep * 86400000).toISOString().replace('T', ' ').substring(0, 19)
+    const countResult = this.db.exec('SELECT COUNT(*) FROM audit_log WHERE created_at < ?', [cutoff])
+    const count = countResult.length > 0 ? (countResult[0].values[0][0] as number) : 0
+    if (count > 0) {
+      this.run('DELETE FROM audit_log WHERE created_at < ?', [cutoff])
+    }
+    return count
   }
 
   getRecentActivity(limit = 5): Array<{ type: string; description: string; date: string }> {

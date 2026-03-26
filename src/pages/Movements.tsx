@@ -21,7 +21,7 @@ const typeColors: Record<MovementType, string> = {
   entrada: '#4ADE80',
   salida: '#F87171',
   ajuste: '#FBBF24',
-  devolucion: '#C47A3A',
+  devolucion: '#D4894A',
 }
 
 function formatMovDate(dateStr: string) {
@@ -119,12 +119,12 @@ export default function Movements() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Movimientos de Inventario</h1>
           <p className="text-sm text-gray-400 mt-0.5">Entradas, salidas y ajustes de stock</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
+        <Button onClick={() => setShowModal(true)} className="self-start sm:self-auto">
           <Plus className="h-4 w-4" /> Registrar Movimiento
         </Button>
       </div>
@@ -147,21 +147,21 @@ export default function Movements() {
           options={products.map((p) => ({ value: p.id, label: p.name }))}
           placeholder="Todos los productos"
         />
-        <div className="flex items-center gap-1.5">
-          <Calendar className="h-4 w-4 text-gray-500" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto">
+          <Calendar className="h-4 w-4 text-gray-500 hidden sm:block" />
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-white transition-default focus-ring"
+            className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-white transition-default focus-ring w-full sm:w-auto"
             title="Fecha inicio"
           />
-          <span className="text-gray-500 text-xs">a</span>
+          <span className="text-gray-500 text-xs hidden sm:block">a</span>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-white transition-default focus-ring"
+            className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-white transition-default focus-ring w-full sm:w-auto"
             title="Fecha fin"
           />
         </div>
@@ -178,7 +178,7 @@ export default function Movements() {
       <Card className="!p-0 overflow-x-auto">
         {movements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <ArrowLeftRight className="h-12 w-12 text-gray-600 mb-4" />
+            <ArrowLeftRight className="h-12 w-12 text-gray-500 mb-4" />
             <p className="text-gray-400">Sin movimientos registrados</p>
           </div>
         ) : (

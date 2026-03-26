@@ -204,7 +204,7 @@ export default function Products() {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
@@ -248,12 +248,14 @@ export default function Products() {
         <div className="flex items-center gap-1 rounded-lg border border-border p-1">
           <button
             onClick={() => setViewMode('table')}
+            aria-label="Vista de tabla"
             className={`rounded p-1.5 transition-default ${viewMode === 'table' ? 'bg-copper/20 text-copper' : 'text-gray-400 hover:text-white'}`}
           >
             <List className="h-4 w-4" />
           </button>
           <button
             onClick={() => setViewMode('grid')}
+            aria-label="Vista de cuadricula"
             className={`rounded p-1.5 transition-default ${viewMode === 'grid' ? 'bg-copper/20 text-copper' : 'text-gray-400 hover:text-white'}`}
           >
             <Grid3X3 className="h-4 w-4" />
@@ -315,9 +317,9 @@ export default function Products() {
       {products.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center justify-center py-12">
-            <PackageX className="h-12 w-12 text-gray-600 mb-4" />
+            <PackageX className="h-12 w-12 text-gray-500 mb-4" />
             <p className="text-gray-400 mb-2">No se encontraron productos</p>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-500 mb-4">
               {search ? 'Intenta con otros terminos de busqueda' : 'Agrega tu primer producto para empezar'}
             </p>
             {!search && (
@@ -367,7 +369,7 @@ export default function Products() {
                     <td className="px-4 py-3 font-medium">{product.name}</td>
                     <td className="px-4 py-3 font-mono text-gray-400">{product.sku}</td>
                     <td className="px-4 py-3">
-                      {cat ? <Badge color={cat.color}>{cat.name}</Badge> : <span className="text-gray-600">—</span>}
+                      {cat ? <Badge color={cat.color}>{cat.name}</Badge> : <span className="text-gray-500">—</span>}
                     </td>
                     <td className={`px-4 py-3 text-right font-mono ${lowStock ? 'text-error' : ''}`}>
                       {product.stock_quantity}
@@ -426,7 +428,7 @@ export default function Products() {
         title={editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
         size="lg"
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Nombre *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nombre del producto" />
           <Input label="SKU *" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="PROD-0001" />
           <div className="col-span-2">

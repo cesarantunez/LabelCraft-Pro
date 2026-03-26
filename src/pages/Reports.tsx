@@ -101,7 +101,7 @@ function KPI({ label, value, sub, color }: { label: string; value: string | numb
     <div className="rounded-lg bg-background p-4">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className="text-2xl font-bold" style={{ color: color || '#fff' }}>{value}</p>
-      {sub && <p className="text-[10px] text-gray-600 mt-0.5">{sub}</p>}
+      {sub && <p className="text-[10px] text-gray-500 mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -268,7 +268,7 @@ export default function Reports() {
             <KPI label="Productos" value={products.length} />
             <KPI label="Total unidades" value={totalUnits.toLocaleString()} />
             <KPI label="Valor costo" value={fc(totalCostValue)} />
-            <KPI label="Valor venta" value={fc(totalSaleValue)} color="#C47A3A" />
+            <KPI label="Valor venta" value={fc(totalSaleValue)} color="#D4894A" />
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
@@ -408,7 +408,7 @@ export default function Reports() {
               rows={printHistory.map((h) => { let n = 0; try { n = JSON.parse(h.product_ids).length } catch {}; return [formatDate(h.printed_at), String(n), String(h.quantity), h.status] })} name="impresiones" />
           </div>
           <div className="grid grid-cols-3 gap-3 mb-4">
-            <KPI label="Total etiquetas" value={totalLabelsPrinted.toLocaleString()} color="#C47A3A" />
+            <KPI label="Total etiquetas" value={totalLabelsPrinted.toLocaleString()} color="#D4894A" />
             <KPI label="Sesiones" value={printHistory.length} />
             <KPI label="Hoy" value={db.getPrintCountToday()} />
           </div>
@@ -447,7 +447,7 @@ export default function Reports() {
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-4">
             <KPI label="Inversion costo" value={fc(totalCostValue)} />
-            <KPI label="Valor venta" value={fc(totalSaleValue)} color="#C47A3A" />
+            <KPI label="Valor venta" value={fc(totalSaleValue)} color="#D4894A" />
             <KPI label="Margen bruto" value={fc(margin)} color={margin >= 0 ? '#4ADE80' : '#F87171'} />
             <KPI label="Margen %" value={`${marginPct}%`} color="#60A5FA" sub="sobre costo" />
           </div>

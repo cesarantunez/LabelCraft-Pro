@@ -11,7 +11,7 @@ const config: Config = {
         background: '#0A0A0A',
         surface: '#1A1A1A',
         border: '#2A2A2A',
-        copper: '#C47A3A',
+        copper: '#D4894A',
         success: '#4ADE80',
         warning: '#FBBF24',
         error: '#F87171',

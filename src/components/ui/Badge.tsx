@@ -6,7 +6,7 @@ interface BadgeProps {
   variant?: 'solid' | 'outline'
 }
 
-export function Badge({ children, color = '#C47A3A', variant = 'solid' }: BadgeProps) {
+export function Badge({ children, color = '#D4894A', variant = 'solid' }: BadgeProps) {
   if (variant === 'outline') {
     return (
       <span
