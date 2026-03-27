@@ -1,4 +1,4 @@
-import bwipjs from 'bwip-js'
+import bwipjs from 'bwip-js/browser'
 import type { BarcodeType } from '@/types'
 
 // ─── Barcode type mapping to bwip-js encoder names ────────────────────────────
